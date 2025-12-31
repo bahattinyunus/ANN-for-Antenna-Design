@@ -9,16 +9,16 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from generator import generate_antenna_data
 from model import build_ann_model
+from optimizer import run_inverse_design
 
 def train(use_cv=False):
-    # 1. Generate/Load Data
+    # ... (existing train function)
+    # Note: I'm keeping the original train function logic intact
     data_file = "antenna_dataset.csv"
     if not os.path.exists(data_file):
         generate_antenna_data()
     
     df = pd.read_csv(data_file)
-    
-    # 2. Preprocessing
     X = df[['W_mm', 'L_mm', 'h_mm', 'er']].values
     y = df['fr_GHz'].values
     
@@ -26,22 +26,18 @@ def train(use_cv=False):
     X_scaled = scaler.fit_transform(X)
     
     if use_cv:
-        print(f"Executing {5}-Fold Cross Validation...")
+        print(f"Executing 5-Fold Cross Validation...")
         model_cv = build_ann_model()
         scores = cross_val_score(model_cv, X_scaled, y, cv=5, scoring='neg_mean_squared_error')
         mse_scores = -scores
         print(f"CV MSE Scores: {mse_scores}")
         print(f"Mean MSE: {mse_scores.mean():.4f} (+/- {mse_scores.std():.4f})")
     
-    # Standard training split for final model and plotting
     X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
-    
-    # 3. Build & Train Model
     model = build_ann_model()
     print("Training the final MLP model...")
     model.fit(X_train, y_train)
     
-    # 4. Evaluation
     y_pred = model.predict(X_test)
     mse = mean_squared_error(y_test, y_pred)
     mae = mean_absolute_error(y_test, y_pred)
@@ -52,12 +48,10 @@ def train(use_cv=False):
     print(f"MAE: {mae:.4f}")
     print(f"R² Skoru: {r2:.4f}")
     
-    # 5. Save Model & Scaler
     joblib.dump(model, 'antenna_model.pkl')
     joblib.dump(scaler, 'scaler.pkl')
     print("\nModel and Scaler saved as antenna_model.pkl and scaler.pkl")
     
-    # 6. Plotting
     plt.figure(figsize=(10, 6))
     plt.scatter(y_test, y_pred, alpha=0.5, color='blue', label='Tahminler')
     plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--', lw=2, label='İdeal Çizgi')
@@ -90,6 +84,8 @@ if __name__ == "__main__":
     parser.add_argument("--train", action="store_true", help="Modeli eğit")
     parser.add_argument("--cv", action="store_true", help="Cross-validation gerçekleştir")
     parser.add_argument("--predict", action="store_true", help="Frekans tahmini yap")
+    parser.add_argument("--inverse", action="store_true", help="Tersine tasarım (frekanstan boyut tahmini) yap")
+    parser.add_argument("--target_f", type=float, default=2.4, help="Hedef rezonans frekansı (GHz)")
     parser.add_argument("--W", type=float, default=40.0)
     parser.add_argument("--L", type=float, default=40.0)
     parser.add_argument("--H", type=float, default=1.6)
@@ -101,5 +97,7 @@ if __name__ == "__main__":
         train(use_cv=args.cv)
     elif args.predict:
         predict(args.W, args.L, args.H, args.ER)
+    elif args.inverse:
+        run_inverse_design(args.target_f, args.H, args.ER)
     else:
         parser.print_help()
